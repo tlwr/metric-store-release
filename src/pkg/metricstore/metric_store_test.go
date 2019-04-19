@@ -334,6 +334,12 @@ func writePoints(addr string, testPoints []*rpc.Point) {
 		},
 	})
 	Expect(err).ToNot(HaveOccurred())
+
+	// we have decoupled writes from the direct call to to store the point in
+	// order to prevent gRPC connections from getting backed up. as a result,
+	// there might be a slight delay between the receipt of the SendRequest
+	// and the availability of the point in the data store.
+	time.Sleep(10 * time.Millisecond)
 }
 
 type mockPersistentStore struct {

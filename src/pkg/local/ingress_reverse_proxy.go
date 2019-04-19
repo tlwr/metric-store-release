@@ -3,7 +3,9 @@ package local
 import (
 	"context"
 	"log"
+	"time"
 
+	diodes "code.cloudfoundry.org/go-diodes"
 	"github.com/cloudfoundry/metric-store-release/src/pkg/persistence/transform"
 	rpc "github.com/cloudfoundry/metric-store-release/src/pkg/rpc/metricstore_v1"
 	"google.golang.org/grpc"
@@ -13,6 +15,7 @@ import (
 type IngressReverseProxy struct {
 	localClient rpc.IngressClient
 	log         *log.Logger
+	buffer      *diodes.OneToOne
 }
 
 // NewIngressReverseProxy returns a new IngressReverseProxy.
@@ -21,34 +24,62 @@ func NewIngressReverseProxy(
 	log *log.Logger,
 ) *IngressReverseProxy {
 
-	return &IngressReverseProxy{
+	p := &IngressReverseProxy{
 		localClient: localClient,
 		log:         log,
 	}
+
+	p.buffer = diodes.NewOneToOne(10000, diodes.AlertFunc(func(missed int) {
+		p.log.Printf("Ingress buffer dropped %d points", missed)
+	}))
+
+	go p.WritePoints()
+
+	return p
 }
 
 func (p *IngressReverseProxy) Send(ctx context.Context, r *rpc.SendRequest) (*rpc.SendResponse, error) {
+	p.buffer.Set(diodes.GenericDataType(r.Batch))
+	return &rpc.SendResponse{}, nil
+}
+
+func (p *IngressReverseProxy) WritePoints() {
 	var points []*rpc.Point
+	poller := diodes.NewPoller(p.buffer)
 
-	for _, point := range r.Batch.Points {
-		point.Name = transform.SanitizeMetricName(point.GetName())
+	for {
+		data, found := poller.TryNext()
 
-		sanitizedLabels := make(map[string]string)
-		for label, value := range point.GetLabels() {
-			sanitizedLabels[transform.SanitizeLabelName(label)] = value
-		}
-		if len(sanitizedLabels) > 0 {
-			point.Labels = sanitizedLabels
+		if !found {
+			time.Sleep(time.Millisecond)
+			continue
 		}
 
-		points = append(points, point)
+		batch := (*rpc.Points)(data)
+
+		for _, point := range batch.Points {
+			point.Name = transform.SanitizeMetricName(point.GetName())
+
+			sanitizedLabels := make(map[string]string)
+			for label, value := range point.GetLabels() {
+				sanitizedLabels[transform.SanitizeLabelName(label)] = value
+			}
+			if len(sanitizedLabels) > 0 {
+				point.Labels = sanitizedLabels
+			}
+
+			points = append(points, point)
+		}
+
+		p.localClient.Send(context.Background(), &rpc.SendRequest{
+			Batch: &rpc.Points{
+				Points: points,
+			},
+		})
+
+		// reset our slice to save on allocations
+		points = points[:0]
 	}
-
-	return p.localClient.Send(ctx, &rpc.SendRequest{
-		Batch: &rpc.Points{
-			Points: points,
-		},
-	})
 }
 
 // IngressClientFunc transforms a function into an IngressClient.
