@@ -20,6 +20,8 @@ type Initializer interface {
 
 	// NewGauge returns a function to set the value for the given metric.
 	NewGauge(name, unit string) func(value float64)
+
+	NewCounterWithLabels(name string, labels map[string]string) func(delta uint64)
 }
 
 // nopMetrics are the default metrics.
@@ -31,6 +33,10 @@ func (m NullMetrics) NewCounter(name string) func(uint64) {
 
 func (m NullMetrics) NewGauge(name, unit string) func(float64) {
 	return func(float64) {}
+}
+
+func (m NullMetrics) NewCounterWithLabels(name string, labels map[string]string) func(delta uint64) {
+	return func(uint64) {}
 }
 
 func (m NullMetrics) NewSummary(name, unit string) func(float64) {
@@ -55,6 +61,24 @@ func (m *Metrics) NewCounter(name string) func(delta uint64) {
 
 	prometheusCounterMetric := prometheus.NewCounter(prometheus.CounterOpts{
 		Name: name,
+	})
+	m.Registry.MustRegister(prometheusCounterMetric)
+
+	return func(d uint64) {
+		prometheusCounterMetric.Add(float64(d))
+	}
+}
+
+func (m *Metrics) NewCounterWithLabels(name string, labels map[string]string) func(delta uint64) {
+	var promLabels prometheus.Labels
+	for label, value := range labels {
+		promLabels[label] = value
+	}
+	// ConstLabels: prometheus.Labels{"slice": "result_sort"},
+
+	prometheusCounterMetric := prometheus.NewCounter(prometheus.CounterOpts{
+		Name:        name,
+		ConstLabels: promLabels,
 	})
 	m.Registry.MustRegister(prometheusCounterMetric)
 

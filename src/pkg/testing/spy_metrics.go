@@ -50,6 +50,10 @@ func (s *SpyMetrics) NewGauge(name, unit string) func(float64) {
 	}
 }
 
+func (s *SpyMetrics) NewCounterWithLabels(name string, labels map[string]string) func(delta uint64) {
+	return func(uint64) {}
+}
+
 func (s *SpyMetrics) NewSummary(name, unit string) func(float64) {
 	s.Lock()
 	defer s.Unlock()
