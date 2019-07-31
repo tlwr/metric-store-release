@@ -30,11 +30,11 @@ require (
 	github.com/onsi/ginkgo v1.8.0
 	github.com/onsi/gomega v1.5.0
 	github.com/philhofer/fwd v1.0.0 // indirect
-	github.com/prometheus/client_golang v0.9.3
+	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/client_model v0.0.0-20190129233127-fd36f4220a90
 	github.com/prometheus/common v0.4.1
-	github.com/prometheus/prometheus v0.0.0-20190525122359-d20e84d0fb64
-	github.com/prometheus/tsdb v0.8.0
+	github.com/prometheus/prometheus v0.0.0-20190710134608-e5b22494857d
+	github.com/prometheus/tsdb v0.9.1
 	github.com/smartystreets/goconvey v0.0.0-20190222223459-a17d461953aa // indirect
 	github.com/spf13/cast v1.2.0 // indirect
 	github.com/tinylib/msgp v1.1.0 // indirect
